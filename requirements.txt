@@ -1,0 +1,2 @@
+# Checkpoint 1 intentionally has no third-party runtime dependencies.
+# Future checkpoint dependencies will be pinned here as they are introduced.

@@ -1,0 +1,23 @@
+[dataset]
+default_count = 200
+minimum_count = 100
+maximum_count = 300
+currency = "INR"
+regulatory_threshold_paise = 1500000
+recovery_window_days = 7
+
+[category_weights]
+afa_stepup_required = 0.50
+rupay_hard_block = 0.15
+insufficient_funds = 0.15
+expired_card = 0.10
+other = 0.10
+
+[recovery_rates]
+# Versioned simulation assumptions used only to create evaluation labels.
+# They are not headline metrics and must not be read by runtime decision code.
+afa_stepup_required = 0.82
+rupay_hard_block = 0.45
+insufficient_funds = 0.62
+expired_card = 0.55
+other = 0.15

@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Runtime outputs. The reproducible checkpoint sample is explicitly allowed.
+data/generated/*
+!data/generated/.gitkeep
+!data/generated/failed_payments.seed-42.jsonl
+data/runs/
+
+# Local audit/database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
