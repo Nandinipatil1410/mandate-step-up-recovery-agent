@@ -24,3 +24,14 @@ When observable signals conflict, the classifier applies this explicit order:
 5. explainable `other` fallback.
 
 The RuPay constraint comes first because a recurring debit above the threshold cannot proceed on that rail regardless of another decline signal. Explicit issuer decline codes then take precedence over inferred mandate-ceiling failure because they state the observed cause more directly. This precedence is configurable only through reviewed code/config changes, never by an LLM.
+
+## Checkpoint 3 simulation and agent assumptions
+
+1. The full offline batch defaults to `scripted`, clearly recorded as `deterministic-policy-v1`. It exercises the same context, permission, tool-validation, execution, and audit-trace path as an LLM without requiring credentials or network access.
+2. Groq and Ollama are optional decision providers. A missing or invalid provider fails closed; the application does not silently invent a money-affecting decision.
+3. Model “reasoning” means a short auditable decision summary supplied with the tool call, not hidden chain-of-thought.
+4. AFA-compliant execution preserves `mandate_id`; the naive baseline deliberately creates a simulated replacement mandate.
+5. RuPay hard-block cases receive only `offer_alternate_method` on their initial agent turn. Direct retry execution is independently rejected too.
+6. `mark_recovered` is the only tool available after verified payment evidence. `mark_unrecoverable` is the only tool available after a verified terminal condition.
+7. Success probabilities in `config/recovery.toml` are transparent synthetic assumptions. Both strategies use the same deterministic latent customer response per transaction, while strategy-specific probabilities model intervention effectiveness.
+8. The initial comparison is one recovery intervention per transaction. Multi-turn scheduling, notifications, promise follow-up, and complete lifecycle audit are checkpoint 4.

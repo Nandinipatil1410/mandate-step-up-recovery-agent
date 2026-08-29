@@ -23,6 +23,15 @@ Checkpoint 2 adds a deterministic root-cause classifier:
 - runtime-only inputs with evaluation labels stripped first;
 - per-category accuracy, confusion matrix, and full mismatch reporting.
 
+Checkpoint 3 adds the bounded recovery agent and paired baseline comparison:
+
+- a fixed seven-tool registry with schema validation;
+- category- and state-specific tool permissions;
+- hard same-mandate, RuPay, retry-cap, recovery-window, and payment-evidence checks;
+- provider-neutral clients for Groq, Ollama, and deterministic simulation/replay;
+- compliant agent flow versus an intentionally broken new-mandate baseline;
+- paired seeded outcomes, so both strategies face the same latent customer response.
+
 ## Generate the checkpoint dataset
 
 Python 3.11 or newer is recommended. Checkpoint 1 uses only the Python standard library.
@@ -53,6 +62,30 @@ Inspect the resulting files under `data/runs/checkpoint-2/`:
 
 - `classified_transactions.jsonl` contains the runtime transaction, prediction, rule ID, evidence, and evaluation result;
 - `classification_metrics.json` contains overall/per-category accuracy, a confusion matrix, and every mismatch.
+
+## Compare compliant and naive recovery flows
+
+The reproducible offline comparison uses the explicitly labeled scripted provider:
+
+```bash
+python scripts/compare_flows.py --run-id checkpoint-3 --seed 42 --provider scripted
+```
+
+With a Groq free-tier key in `GROQ_API_KEY`, the same bounded agent can use live model tool selection:
+
+```bash
+python scripts/compare_flows.py --run-id checkpoint-3-groq --seed 42 --provider groq
+```
+
+Use `--provider ollama` for the configured local Ollama endpoint. Provider selection changes who chooses among permitted tools; it does not change tool capabilities or enforcement.
+
+Checkpoint-3 artifacts are written under `data/runs/<run-id>/`:
+
+- `agent_traces.jsonl` — context, tools offered, decision summary, selected tool, validation, and result;
+- `compliant_results.jsonl` and `naive_results.jsonl` — paired transaction outcomes;
+- `comparison_metrics.json` — recovery count/rate, recovered paise, time, and delta.
+
+All recovery outcomes and headline numbers in this prototype are generated from documented synthetic probabilities. They are demonstration measurements, not claims about production recovery performance.
 
 ## Evaluation-label boundary
 

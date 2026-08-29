@@ -107,6 +107,35 @@ class ClassificationResult:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class ToolCall:
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class AgentDecision:
+    provider: str
+    model: str
+    rationale: str
+    tool_calls: tuple[ToolCall, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class ToolResult:
+    tool_name: str
+    accepted: bool
+    status: str
+    reason_code: str
+    details: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 def parse_iso_datetime(value: str) -> datetime:
     """Parse an ISO-8601 timestamp and require timezone information."""
     parsed = datetime.fromisoformat(value)

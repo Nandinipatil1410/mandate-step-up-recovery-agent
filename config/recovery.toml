@@ -1,0 +1,29 @@
+[agent]
+default_provider = "scripted"
+max_immediate_turns = 5
+retry_cap = 3
+recovery_window_days = 7
+
+[groq]
+model = "openai/gpt-oss-20b"
+base_url = "https://api.groq.com/openai/v1/chat/completions"
+timeout_seconds = 30
+
+[ollama]
+model = "llama3.1:8b"
+base_url = "http://127.0.0.1:11434/api/chat"
+timeout_seconds = 60
+
+[compliant_success_probability]
+afa_stepup_required = 0.82
+rupay_hard_block = 0.45
+insufficient_funds = 0.62
+expired_card = 0.45
+other = 0.10
+
+[naive_success_probability]
+afa_stepup_required = 0.12
+rupay_hard_block = 0.00
+insufficient_funds = 0.62
+expired_card = 0.45
+other = 0.10
