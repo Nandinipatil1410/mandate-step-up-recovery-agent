@@ -16,6 +16,13 @@ Checkpoint 1 implements a deterministic synthetic failed-payment generator:
 - schema and business-invariant validation;
 - reproducible output from a fixed seed.
 
+Checkpoint 2 adds a deterministic root-cause classifier:
+
+- named, ordered rules rather than model scoring;
+- structured evidence and a human-readable reason for every prediction;
+- runtime-only inputs with evaluation labels stripped first;
+- per-category accuracy, confusion matrix, and full mismatch reporting.
+
 ## Generate the checkpoint dataset
 
 Python 3.11 or newer is recommended. Checkpoint 1 uses only the Python standard library.
@@ -35,6 +42,17 @@ python scripts/generate_dataset.py --seed 42 --count 200 --output data/generated
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+## Classify the generated batch
+
+```bash
+python scripts/classify_batch.py --run-id checkpoint-2
+```
+
+Inspect the resulting files under `data/runs/checkpoint-2/`:
+
+- `classified_transactions.jsonl` contains the runtime transaction, prediction, rule ID, evidence, and evaluation result;
+- `classification_metrics.json` contains overall/per-category accuracy, a confusion matrix, and every mismatch.
 
 ## Evaluation-label boundary
 

@@ -1,0 +1,17 @@
+[rules]
+regulatory_threshold_paise = 1500000
+
+# Precedence is deliberate:
+# 1. RuPay above the hard threshold cannot recur on the same rail.
+# 2. Explicit issuer decline codes identify funds/card failures.
+# 3. Remaining non-RuPay mandate-limit breaches require AFA step-up.
+# 4. Anything else is routed to the explainable `other` fallback.
+insufficient_funds_codes = [
+  "INSUFFICIENT_FUNDS",
+  "LOW_BALANCE",
+  "NOT_ENOUGH_BALANCE",
+]
+expired_card_codes = [
+  "CARD_EXPIRED",
+  "EXPIRED_CARD",
+]

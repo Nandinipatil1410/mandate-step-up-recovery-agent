@@ -12,3 +12,15 @@
 10. **Ground truth is an answer key.** Runtime modules receive `to_runtime_dict()` output, which excludes category, correct action, and recoverability labels.
 
 The generator uses a fixed UTC base time rather than the current clock. This makes byte-for-byte reproducibility possible for a given configuration, seed, and count.
+
+## Checkpoint 2 rule precedence
+
+When observable signals conflict, the classifier applies this explicit order:
+
+1. RuPay above the configured hard threshold;
+2. recognized insufficient-funds decline code;
+3. recognized expired-card decline code;
+4. non-RuPay amount above its mandate ceiling;
+5. explainable `other` fallback.
+
+The RuPay constraint comes first because a recurring debit above the threshold cannot proceed on that rail regardless of another decline signal. Explicit issuer decline codes then take precedence over inferred mandate-ceiling failure because they state the observed cause more directly. This precedence is configurable only through reviewed code/config changes, never by an LLM.

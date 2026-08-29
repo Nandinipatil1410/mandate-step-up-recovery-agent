@@ -94,6 +94,19 @@ class SyntheticTransaction:
         return record
 
 
+@dataclass(frozen=True)
+class ClassificationResult:
+    """Explainable output from the deterministic root-cause classifier."""
+
+    predicted_category: str
+    rule_id: str
+    reason: str
+    evidence: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 def parse_iso_datetime(value: str) -> datetime:
     """Parse an ISO-8601 timestamp and require timezone information."""
     parsed = datetime.fromisoformat(value)
