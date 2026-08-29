@@ -65,3 +65,21 @@ The RuPay constraint comes first because a recurring debit above the threshold c
    applicable test-mode API can prove that operation, `request_stepup` remains a
    transparent simulation tied to the existing mandate ID. This avoids claiming
    that a new payment or mandate is the compliant step-up flow.
+
+## Checkpoint 5 dashboard assumptions
+
+1. **The paired flow comparison remains the headline experiment.** Compliant and
+   naive values come from checkpoint 3 because that run holds the batch and
+   latent customer response constant. Checkpoint 4 lifecycle values appear in a
+   separate health view and are not substituted into the paired comparison.
+2. **Dashboard metrics are derived, not embedded.** The loader recomputes counts,
+   recovered value, category outcomes, and unresolved reasons from raw lifecycle
+   rows, and refuses to load if headline lifecycle totals disagree.
+3. **Run artifacts are reproducible local outputs.** They remain ignored by Git
+   to avoid committing every demo run. A fresh clone generates them using the
+   documented seed-42 commands before starting Streamlit.
+4. **The decision explorer exposes model rationale, not private chain-of-thought.**
+   It displays the concise audit explanation submitted with a bounded tool call.
+5. **The dashboard is a demo evidence console, not operational monitoring.** It
+   reads completed batch artifacts and does not imply live production traffic,
+   customer contact, or actual recovered funds.

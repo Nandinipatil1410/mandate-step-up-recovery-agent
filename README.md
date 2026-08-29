@@ -42,6 +42,33 @@ Checkpoint 4 completes the bounded lifecycle around that agent:
 - optional Razorpay test-mode subscription lookup, Payment Link plumbing for the
   alternate-method path, and webhook signature verification.
 
+Checkpoint 5 adds the live evidence dashboard:
+
+- compliant-versus-naive recovery rate and recovered-value comparison;
+- lifecycle recovery, recovery time, root-cause, and honest-exception views;
+- audited notification prompt/response samples;
+- transaction filtering with a chronological agent decision trace;
+- consistency checks that reject summary files which disagree with raw results.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A[Synthetic failed payments] --> B[Explainable rule classifier]
+    B --> C[Bounded recovery agent]
+    C --> D{Policy-filtered tools}
+    D --> E[Step-up / alternate method]
+    D --> F[Retry scheduler + stopping rules]
+    D --> G[Escalation / terminal state]
+    E --> H[Notification drafts]
+    F --> H
+    C --> I[Hash-chained audit trail]
+    D --> I
+    H --> I
+    I --> J[Metrics dashboard]
+    K[Razorpay test-mode edge] -. optional verified plumbing .-> D
+```
+
 ## Generate the checkpoint dataset
 
 Python 3.11 or newer is recommended. Checkpoint 1 uses only the Python standard library.
@@ -150,6 +177,28 @@ alternate-method path, and verifies Razorpay webhook HMAC signatures before
 normalizing subscription events. These calls are deliberately not part of the
 synthetic batch metric: Razorpay test mode cannot reproduce the bank-side AFA
 failure, and a Payment Link must not be presented as same-mandate AFA approval.
+
+## Run the checkpoint-5 dashboard
+
+Install the UI dependency and generate both evidence runs:
+
+```bash
+python -m pip install -r requirements.txt
+python scripts/compare_flows.py --run-id checkpoint-3 --seed 42 --provider scripted
+python scripts/run_recovery.py --run-id checkpoint-4 --seed 42
+```
+
+Start the dashboard:
+
+```bash
+python -m streamlit run dashboard/app.py
+```
+
+Open `http://localhost:8501`. The dashboard computes every displayed value from
+the JSON/JSONL files under `data/runs/checkpoint-3/` and
+`data/runs/checkpoint-4/`; it contains no hardcoded recovery metrics. If files
+are missing or inconsistent, it shows the exact preparation commands instead of
+silently presenting stale numbers.
 
 ## Evaluation-label boundary
 
