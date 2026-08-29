@@ -35,3 +35,33 @@ The RuPay constraint comes first because a recurring debit above the threshold c
 6. `mark_recovered` is the only tool available after verified payment evidence. `mark_unrecoverable` is the only tool available after a verified terminal condition.
 7. Success probabilities in `config/recovery.toml` are transparent synthetic assumptions. Both strategies use the same deterministic latent customer response per transaction, while strategy-specific probabilities model intervention effectiveness.
 8. The initial comparison is one recovery intervention per transaction. Multi-turn scheduling, notifications, promise follow-up, and complete lifecycle audit are checkpoint 4.
+
+## Checkpoint 4 lifecycle and integration assumptions
+
+1. **Three attempts means the original failed debit plus two retries.** The
+   retries occur after 24 hours and then 72 hours. The brief's “7 days” is
+   interpreted as the outer recovery window, because three total attempts leave
+   only two retry intervals.
+2. **The simulated clock is authoritative for offline evaluation.** No test waits
+   in real time. Retry notices are emitted at the calculated notice timestamp,
+   and retries at the calculated execution timestamp.
+3. **A promise without a confirmed payment becomes missed when due.** The tracker
+   sends one follow-up and then refuses another. A real deployment would consume
+   a payment-status signal before making that transition.
+4. **Notification generation does not contact customers.** It drafts and audits
+   text only. A basic output validator rejects requests for OTP, PIN, CVV, or full
+   card details even when an LLM provider produced the text.
+5. **The audit chain is tamper-evident, not an immutable database.** Each event
+   hashes its complete content and the previous event hash. Production should
+   additionally store it in access-controlled, durable infrastructure.
+6. **Groq is the demo LLM provider.** The deterministic scripted provider remains
+   the reproducible evaluator and fail-safe path. Groq receives runtime-visible
+   evidence only and cannot enlarge its permitted tool set.
+7. **Razorpay is an optional test-mode edge integration.** The client refuses
+   non-`rzp_test_` keys. Subscription lookup, alternate-method Payment Link
+   creation, and verified webhook normalization demonstrate realistic plumbing;
+   synthetic events continue to model the bank-side defect.
+8. **A Razorpay Payment Link is not represented as same-mandate AFA.** Until an
+   applicable test-mode API can prove that operation, `request_stepup` remains a
+   transparent simulation tied to the existing mandate ID. This avoids claiming
+   that a new payment or mandate is the compliant step-up flow.

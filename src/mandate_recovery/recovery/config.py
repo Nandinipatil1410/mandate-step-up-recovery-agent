@@ -16,6 +16,8 @@ class RecoveryConfig:
     max_immediate_turns: int
     retry_cap: int
     recovery_window_days: int
+    retry_backoff_hours: tuple[int, ...]
+    pre_debit_notice_hours: int
     groq_model: str
     groq_base_url: str
     groq_timeout_seconds: int
@@ -29,12 +31,15 @@ class RecoveryConfig:
 def load_recovery_config(path: Path = DEFAULT_RECOVERY_CONFIG) -> RecoveryConfig:
     with path.open("rb") as config_file:
         raw = tomllib.load(config_file)
-    agent, groq, ollama = raw["agent"], raw["groq"], raw["ollama"]
+    agent, retry = raw["agent"], raw["retry"]
+    groq, ollama = raw["groq"], raw["ollama"]
     config = RecoveryConfig(
         default_provider=str(agent["default_provider"]),
         max_immediate_turns=int(agent["max_immediate_turns"]),
         retry_cap=int(agent["retry_cap"]),
         recovery_window_days=int(agent["recovery_window_days"]),
+        retry_backoff_hours=tuple(int(value) for value in retry["backoff_hours"]),
+        pre_debit_notice_hours=int(retry["pre_debit_notice_hours"]),
         groq_model=str(groq["model"]),
         groq_base_url=str(groq["base_url"]),
         groq_timeout_seconds=int(groq["timeout_seconds"]),
@@ -46,6 +51,10 @@ def load_recovery_config(path: Path = DEFAULT_RECOVERY_CONFIG) -> RecoveryConfig
     )
     if config.retry_cap < 1 or config.max_immediate_turns < 1:
         raise ValueError("agent caps must be positive")
+    if len(config.retry_backoff_hours) < config.retry_cap - 1:
+        raise ValueError("retry backoff must cover every permitted retry")
+    if any(value <= 0 for value in config.retry_backoff_hours):
+        raise ValueError("retry backoffs must be positive")
     for probabilities in (
         config.compliant_success_probability, config.naive_success_probability
     ):

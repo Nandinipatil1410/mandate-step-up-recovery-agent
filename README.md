@@ -32,6 +32,16 @@ Checkpoint 3 adds the bounded recovery agent and paired baseline comparison:
 - compliant agent flow versus an intentionally broken new-mandate baseline;
 - paired seeded outcomes, so both strategies face the same latent customer response.
 
+Checkpoint 4 completes the bounded lifecycle around that agent:
+
+- deterministic retry scheduling at 24h and 72h, with a maximum of three total attempts;
+- recovery-window and retry-cap stopping rules enforced outside the LLM;
+- one-and-only-one follow-up for a missed promise to pay;
+- Hinglish notification drafts with every prompt/response pair retained;
+- an append-only, SHA-256 hash-chained audit trail;
+- optional Razorpay test-mode subscription lookup, Payment Link plumbing for the
+  alternate-method path, and webhook signature verification.
+
 ## Generate the checkpoint dataset
 
 Python 3.11 or newer is recommended. Checkpoint 1 uses only the Python standard library.
@@ -87,10 +97,64 @@ Checkpoint-3 artifacts are written under `data/runs/<run-id>/`:
 
 All recovery outcomes and headline numbers in this prototype are generated from documented synthetic probabilities. They are demonstration measurements, not claims about production recovery performance.
 
+## Run the complete checkpoint-4 lifecycle
+
+The review-safe offline command is deterministic and needs no API credentials:
+
+```bash
+python scripts/run_recovery.py --run-id checkpoint-4 --seed 42 --decision-provider scripted --notification-provider template
+```
+
+Inspect `data/runs/checkpoint-4/` after it finishes:
+
+- `lifecycle_summary.json` — recovered count/rate/value, average recovery time,
+  final states, unresolved reasons, and audit verification;
+- `lifecycle_results.jsonl` — one final outcome per transaction;
+- `notifications.jsonl` — Hinglish drafts plus provider/model, prompt, response,
+  and safety-validation status;
+- `audit_events.jsonl` — classification, agent rationale/tool choice, retries,
+  notifications, promise transitions, escalations, and terminal states linked by
+  a tamper-evident hash chain.
+
+Verify the persisted audit independently:
+
+```bash
+python scripts/verify_audit.py data/runs/checkpoint-4/audit_events.jsonl
+```
+
+Seed 42 currently recovers 131 of 200 transactions (65.5%), representing
+INR 2,383,472.00 of synthetic revenue. The run also leaves 52 escalated and 17
+unrecoverable records visible instead of hiding unsuccessful cases.
+
+For the judged demo, set `GROQ_API_KEY` and switch either or both providers:
+
+```bash
+python scripts/run_recovery.py --run-id checkpoint-4-groq --seed 42 --decision-provider groq --notification-provider groq
+```
+
+Groq only selects from tools the policy layer exposes and drafts notification
+text. Retry caps, windows, RuPay restrictions, same-mandate checks, sensitive-text
+validation, and terminal-state evidence remain enforced in deterministic code.
+
+## Optional Razorpay test-mode plumbing
+
+Copy `.env.example` values into your shell, using only `rzp_test_` credentials.
+To confirm an existing test subscription can be read:
+
+```bash
+python scripts/razorpay_test_smoke.py --subscription-id sub_your_test_id
+```
+
+The integration module can also create a test Payment Link for the RuPay
+alternate-method path, and verifies Razorpay webhook HMAC signatures before
+normalizing subscription events. These calls are deliberately not part of the
+synthetic batch metric: Razorpay test mode cannot reproduce the bank-side AFA
+failure, and a Payment Link must not be presented as same-mandate AFA approval.
+
 ## Evaluation-label boundary
 
 Each stored synthetic record contains answer-key fields such as `failure_category`, `correct_action`, and `ground_truth_recoverable`. They exist only to evaluate later checkpoints. `SyntheticTransaction.to_runtime_dict()` strips these fields before classification or orchestration.
 
 The classifier and recovery agent must infer their decisions from observable fields such as amount, mandate ceiling, payment rail, card network, decline code, and prior attempts. Reading the answer-key fields at runtime would be label leakage and would invalidate the evaluation.
 
-See [Checkpoint 1 assumptions](docs/assumptions.md) for the schema decisions made from the brief.
+See [project assumptions](docs/assumptions.md) for the decisions made from the brief.

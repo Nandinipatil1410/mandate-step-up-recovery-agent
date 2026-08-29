@@ -11,7 +11,8 @@ PROMPT_VERSION = "recovery-decision-v1"
 
 def build_context(
     transaction: dict[str, Any], classification: ClassificationResult,
-    *, retry_cap: int,
+    *, retry_cap: int, verified_payment_id: str | None = None,
+    terminal_reason: str | None = None,
 ) -> dict[str, Any]:
     observable = {
         key: value for key, value in transaction.items() if key not in EVALUATION_FIELDS
@@ -26,4 +27,8 @@ def build_context(
             "recovery_window_expires_at": observable["recovery_window_expires_at"],
         },
         "promise_to_pay": observable.get("promise_to_pay"),
+        "verified_state": {
+            "payment_id": verified_payment_id,
+            "terminal_reason": terminal_reason,
+        },
     }

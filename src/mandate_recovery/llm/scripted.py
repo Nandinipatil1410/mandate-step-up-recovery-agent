@@ -17,6 +17,22 @@ class ScriptedDecisionClient:
         category = context["classification"]["predicted_category"]
         available = {tool["name"] for tool in tools}
         transaction = context["transaction"]
+        if available == {"mark_recovered"}:
+            payment_id = context["verified_state"]["payment_id"]
+            choice = ToolCall("mark_recovered", {
+                "payment_id": payment_id,
+                "reason": "Verified payment evidence confirms recovery.",
+            })
+            return AgentDecision(
+                self.provider, self.model, choice.arguments["reason"], (choice,)
+            )
+        if available == {"mark_unrecoverable"}:
+            choice = ToolCall("mark_unrecoverable", {
+                "reason": str(context["verified_state"]["terminal_reason"]),
+            })
+            return AgentDecision(
+                self.provider, self.model, choice.arguments["reason"], (choice,)
+            )
         choice = {
             FailureCategory.AFA_STEPUP_REQUIRED.value: ToolCall(
                 "request_stepup", {

@@ -40,7 +40,10 @@ class RecoveryAgent:
         *, now: datetime, verified_payment_id: str | None = None,
         terminal_reason: str | None = None,
     ) -> AgentTurn:
-        context = build_context(transaction, classification, retry_cap=self.retry_cap)
+        context = build_context(
+            transaction, classification, retry_cap=self.retry_cap,
+            verified_payment_id=verified_payment_id, terminal_reason=terminal_reason,
+        )
         allowed = permitted_tools(
             classification.predicted_category,
             verified_payment_id=verified_payment_id,

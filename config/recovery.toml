@@ -4,6 +4,11 @@ max_immediate_turns = 5
 retry_cap = 3
 recovery_window_days = 7
 
+[retry]
+# Original failure is attempt 1; these delays schedule attempts 2 and 3.
+backoff_hours = [24, 72]
+pre_debit_notice_hours = 24
+
 [groq]
 model = "openai/gpt-oss-20b"
 base_url = "https://api.groq.com/openai/v1/chat/completions"
