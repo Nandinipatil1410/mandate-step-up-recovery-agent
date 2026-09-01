@@ -66,6 +66,11 @@ def execute_tool(call: ToolCall, context: ToolExecutionContext) -> ToolResult:
         })
 
     if call.name == "schedule_retry":
+        if transaction.get("retry_owner") == "razorpay":
+            return _reject(call.name, "EXTERNAL_RETRY_ALREADY_SCHEDULED", {
+                "retry_owner": "razorpay",
+                "gateway_retry_at": transaction.get("gateway_retry_at"),
+            })
         if category == FailureCategory.RUPAY_HARD_BLOCK.value:
             return _reject(call.name, "RUPAY_RETRY_FORBIDDEN")
         attempt_number = int(transaction["attempt_number"])
@@ -79,7 +84,10 @@ def execute_tool(call: ToolCall, context: ToolExecutionContext) -> ToolResult:
 
     if call.name == "send_notification":
         return ToolResult(call.name, True, "notification_draft_requested", "DRAFT_ONLY", {
-            "message_purpose": call.arguments["message_purpose"], "contacted_customer": False,
+            "message_purpose": call.arguments["message_purpose"],
+            "contacted_customer": False,
+            "retry_owner": transaction.get("retry_owner"),
+            "gateway_retry_at": transaction.get("gateway_retry_at"),
         })
 
     if call.name == "escalate_human":

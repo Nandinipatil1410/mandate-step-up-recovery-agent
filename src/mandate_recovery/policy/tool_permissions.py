@@ -22,7 +22,8 @@ INITIAL_TOOL_PERMISSIONS: dict[str, tuple[str, ...]] = {
 
 
 def permitted_tools(category: str, *, verified_payment_id: str | None = None,
-                    terminal_reason: str | None = None) -> tuple[str, ...]:
+                    terminal_reason: str | None = None,
+                    retry_owner: str | None = None) -> tuple[str, ...]:
     if category not in INITIAL_TOOL_PERMISSIONS:
         raise ValueError(f"unsupported failure category: {category}")
     if verified_payment_id and terminal_reason:
@@ -31,4 +32,12 @@ def permitted_tools(category: str, *, verified_payment_id: str | None = None,
         return ("mark_recovered",)
     if terminal_reason:
         return ("mark_unrecoverable",)
+    if retry_owner == "razorpay" and category in {
+        FailureCategory.INSUFFICIENT_FUNDS.value,
+        FailureCategory.EXPIRED_CARD.value,
+        FailureCategory.OTHER.value,
+    }:
+        # Razorpay has already scheduled the bounded retry. The agent may explain
+        # that existing schedule or escalate, but must never create a competing one.
+        return ("send_notification", "escalate_human")
     return INITIAL_TOOL_PERMISSIONS[category]

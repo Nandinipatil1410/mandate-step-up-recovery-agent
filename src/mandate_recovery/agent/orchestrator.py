@@ -48,6 +48,7 @@ class RecoveryAgent:
             classification.predicted_category,
             verified_payment_id=verified_payment_id,
             terminal_reason=terminal_reason,
+            retry_owner=transaction.get("retry_owner"),
         )
         decision = self.client.choose_tool(context, tool_specs(allowed))
         if len(decision.tool_calls) != 1:

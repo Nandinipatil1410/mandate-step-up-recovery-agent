@@ -2,7 +2,10 @@
 
 Buildathon prototype for detecting failed recurring-payment revenue, diagnosing the failure, and executing a bounded recovery workflow.
 
-This repository does **not** patch Razorpay or reproduce bank-side failures through Razorpay test mode. Failure events are synthetic. Any future Razorpay test-mode integration will demonstrate supported API plumbing only.
+Offline recovery metrics remain synthetic and reproducible. Separately, the
+repository includes a real Razorpay Test Mode edge: signed subscription events
+are verified, deduplicated, classified conservatively, passed through the same
+bounded recovery agent, and exposed as a PII-minimized live dashboard feed.
 
 ## Current status
 
@@ -66,7 +69,9 @@ flowchart LR
     D --> I
     H --> I
     I --> J[Metrics dashboard]
-    K[Razorpay test-mode edge] -. optional verified plumbing .-> D
+    K[Razorpay signed webhooks] --> L[Idempotent live-event adapter]
+    L --> B
+    L --> I
 ```
 
 ## Generate the checkpoint dataset
@@ -203,7 +208,12 @@ failure, and a Payment Link must not be presented as same-mandate AFA approval.
 The FastAPI service accepts only signed `subscription.pending`,
 `subscription.charged`, `subscription.halted`, and `subscription.activated`
 events. It verifies the untouched request body before parsing, deduplicates via
-`x-razorpay-event-id`, and stores normalized event fields in SQLite.
+`x-razorpay-event-id`, stores normalized event fields in SQLite, and persists
+the bounded agent decision. For pending events, Razorpay remains the retry
+owner: the live agent may draft a notification or escalate, but it cannot
+schedule a competing debit. Unsupported or missing root-cause evidence is
+reported as `other`; the adapter never invents a decline reason or mandate
+ceiling.
 
 Set a separate webhook secret in `.env`, then run locally:
 
@@ -236,6 +246,12 @@ The free deployment uses ephemeral SQLite storage, suitable for the judged demo
 but not production durability. A restart can clear its deduplication history;
 production should attach persistent storage or use a managed database.
 
+Inspect the PII-minimized live recovery feed at:
+
+```text
+https://YOUR-SERVICE.onrender.com/recoveries/recent
+```
+
 ## Run the checkpoint-5 dashboard
 
 Install the UI dependency and generate both evidence runs:
@@ -252,11 +268,12 @@ Start the dashboard:
 python -m streamlit run dashboard/app.py
 ```
 
-Open `http://localhost:8501`. The dashboard computes every displayed value from
+Open `http://localhost:8501`. The first three tabs compute every displayed value from
 the JSON/JSONL files under `data/runs/checkpoint-3/` and
 `data/runs/checkpoint-4/`; it contains no hardcoded recovery metrics. If files
 are missing or inconsistent, it shows the exact preparation commands instead of
-silently presenting stale numbers.
+silently presenting stale numbers. The **Live Razorpay** tab separately reads
+the PII-minimized feed configured by `WEBHOOK_API_BASE_URL`.
 
 ## Evaluation-label boundary
 

@@ -50,8 +50,12 @@ def normalize_subscription_event(body: bytes) -> dict[str, Any]:
         "charge_at": subscription.get("charge_at"),
         "payment_id": payment.get("id"),
         "payment_status": payment.get("status"),
+        "payment_method": payment.get("method"),
         "amount_paise": payment.get("amount"),
         "currency": payment.get("currency"),
         "error_code": payment.get("error_code"),
         "error_reason": payment.get("error_reason"),
+        "error_source": payment.get("error_source"),
+        "error_step": payment.get("error_step"),
+        "error_description": payment.get("error_description"),
     }

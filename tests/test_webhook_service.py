@@ -29,11 +29,12 @@ class WebhookServiceTests(unittest.TestCase):
                     "id": "sub_test", "status": "pending",
                     "customer_id": "cust_test", "plan_id": "plan_test",
                     "paid_count": 1, "remaining_count": 11,
+                    "charge_at": 1788537600,
                 }},
                 "payment": {"entity": {
                     "id": "pay_test", "status": "failed", "amount": 150000,
                     "currency": "INR", "error_code": "BAD_REQUEST_ERROR",
-                    "error_reason": "payment_failed",
+                    "error_reason": "payment_failed", "method": "emandate",
                 }},
             },
         }, separators=(",", ":")).encode()
@@ -58,6 +59,57 @@ class WebhookServiceTests(unittest.TestCase):
             self.assertFalse(first.duplicate)
             self.assertTrue(duplicate.duplicate)
             self.assertEqual(1, store.count())
+            self.assertEqual("completed", first.processing_status)
+            self.assertEqual("send_notification", first.recovery["tool_result"]["tool_name"])
+            self.assertEqual(
+                first.recovery["tool_result"], duplicate.recovery["tool_result"]
+            )
+            recent = store.recent_recoveries(limit=5)
+            self.assertEqual(1, len(recent))
+            self.assertEqual("other", recent[0]["classification"]["predicted_category"])
+            self.assertEqual("send_notification", recent[0]["tool_result"]["tool_name"])
+            self.assertTrue(recent[0]["audit_chain_valid"])
+            self.assertEqual(3, recent[0]["audit_event_count"])
+
+    def test_charged_event_requires_payment_evidence_and_marks_recovered(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = WebhookEventStore(Path(directory) / "events.sqlite3")
+            body = self.payload("subscription.charged")
+            processed = process_razorpay_webhook(
+                body=body, signature=self.signature(body), event_id="event_charged",
+                secret=self.secret, store=store,
+                received_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            )
+            self.assertEqual("mark_recovered", processed.recovery["tool_result"]["tool_name"])
+            self.assertEqual("VERIFIED_PAYMENT", processed.recovery["tool_result"]["reason_code"])
+            self.assertTrue(processed.recovery["audit_chain_valid"])
+
+    def test_halted_event_closes_only_with_terminal_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = WebhookEventStore(Path(directory) / "events.sqlite3")
+            body = self.payload("subscription.halted")
+            processed = process_razorpay_webhook(
+                body=body, signature=self.signature(body), event_id="event_halted",
+                secret=self.secret, store=store,
+                received_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            )
+            self.assertEqual("mark_unrecoverable", processed.recovery["tool_result"]["tool_name"])
+            self.assertEqual(
+                "RAZORPAY_SUBSCRIPTION_HALTED",
+                processed.recovery["tool_result"]["reason_code"],
+            )
+
+    def test_activated_event_is_observed_without_recovery_action(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = WebhookEventStore(Path(directory) / "events.sqlite3")
+            body = self.payload("subscription.activated")
+            processed = process_razorpay_webhook(
+                body=body, signature=self.signature(body), event_id="event_activated",
+                secret=self.secret, store=store,
+                received_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            )
+            self.assertEqual("observed", processed.processing_status)
+            self.assertIsNone(processed.recovery["tool_result"])
 
     def test_invalid_signature_is_rejected_before_persistence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -12,6 +12,7 @@ from mandate_recovery.integrations import (
 )
 
 from .store import WebhookEventStore
+from .recovery import run_live_recovery
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,8 @@ class ProcessedWebhook:
     event: str
     subscription_id: str | None
     duplicate: bool
+    processing_status: str
+    recovery: dict[str, Any] | None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -39,9 +42,31 @@ def process_razorpay_webhook(
         received_at=timestamp.isoformat(),
         body_sha256=hashlib.sha256(body).hexdigest(),
     )
+    recovery = store.recovery_for(event_id)
+    if recovery is None:
+        try:
+            recovery = run_live_recovery(
+                normalized, event_id=event_id, now=timestamp
+            ).to_dict()
+            store.set_recovery(
+                event_id=event_id,
+                recovery=recovery,
+                processed_at=timestamp.isoformat(),
+            )
+        except Exception as error:
+            store.set_processing_error(
+                event_id=event_id,
+                error=f"{type(error).__name__}: {error}",
+                processed_at=timestamp.isoformat(),
+            )
+            # Raising produces a non-2xx response, so Razorpay can retry the same
+            # event id. The normalized intake remains durable for that replay.
+            raise
     return ProcessedWebhook(
         event_id=event_id,
         event=str(normalized["event"]),
         subscription_id=normalized.get("subscription_id"),
         duplicate=not inserted,
+        processing_status=str(recovery["processing_status"]),
+        recovery=recovery,
     )

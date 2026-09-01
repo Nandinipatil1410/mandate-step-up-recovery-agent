@@ -43,6 +43,13 @@ def health() -> dict[str, object]:
     }
 
 
+@app.get("/recoveries/recent")
+def recent_recoveries(limit: int = 20) -> dict[str, object]:
+    """Return a PII-minimized Test Mode recovery feed for the demo dashboard."""
+    recoveries = event_store().recent_recoveries(limit=limit)
+    return {"count": len(recoveries), "recoveries": recoveries}
+
+
 @app.post("/webhooks/razorpay")
 async def receive_razorpay_webhook(
     request: Request,

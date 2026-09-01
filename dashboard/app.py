@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import streamlit as st
@@ -14,6 +17,9 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from mandate_recovery.dashboard import DashboardPaths, load_dashboard_data
+from mandate_recovery.environment import load_project_environment
+
+load_project_environment(PROJECT_ROOT)
 
 
 st.set_page_config(
@@ -103,8 +109,8 @@ kpi3.metric("Naive recovery", f"{comparison['naive']['recovery_rate']:.1%}")
 kpi4.metric("Recovery uplift", f"+{delta['recovery_rate_percentage_points']:.1f} pp")
 kpi5.metric("Incremental revenue", money(delta["recovered_amount_paise"]))
 
-overview_tab, lifecycle_tab, audit_tab = st.tabs(
-    ["Flow comparison", "Lifecycle health", "Decision explorer"]
+overview_tab, lifecycle_tab, audit_tab, live_tab = st.tabs(
+    ["Flow comparison", "Lifecycle health", "Decision explorer", "Live Razorpay"]
 )
 
 with overview_tab:
@@ -233,6 +239,62 @@ with audit_tab:
             st.markdown("**Customer messages drafted**")
             for message in related_messages:
                 st.success(message["response"])
+
+with live_tab:
+    st.subheader("Verified Test Mode events")
+    st.caption(
+        "PII-minimized decisions produced from signed Razorpay webhooks. "
+        "Razorpay remains the retry owner; this agent never creates a duplicate debit."
+    )
+    base_url = os.environ.get(
+        "WEBHOOK_API_BASE_URL", "https://mandate-recovery-webhook.onrender.com"
+    ).rstrip("/")
+    try:
+        request = urllib.request.Request(
+            f"{base_url}/recoveries/recent?limit=20",
+            headers={"User-Agent": "mandate-recovery-dashboard/1.0"},
+        )
+        with urllib.request.urlopen(request, timeout=15) as response:
+            live_payload = json.load(response)
+        live_rows = list(live_payload.get("recoveries", []))
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as error:
+        st.warning("The live webhook feed is temporarily unavailable.")
+        st.caption(str(error))
+        live_rows = []
+
+    if not live_rows:
+        st.info("No processed live events are available yet.")
+    else:
+        a, b, c = st.columns(3)
+        a.metric("Live events", len(live_rows))
+        b.metric(
+            "Pending failures",
+            sum(row.get("event") == "subscription.pending" for row in live_rows),
+        )
+        c.metric(
+            "Agent decisions",
+            sum(bool(row.get("tool_result")) for row in live_rows),
+        )
+        for row in live_rows:
+            classification = row.get("classification") or {}
+            tool_result = row.get("tool_result") or {}
+            with st.expander(
+                f"{row.get('event')} · {row.get('subscription_id')} · "
+                f"{row.get('processing_status')}"
+            ):
+                st.write(
+                    {
+                        "received_at": row.get("received_at"),
+                        "subscription_status": row.get("subscription_status"),
+                        "category": classification.get("predicted_category"),
+                        "classification_reason": classification.get("reason"),
+                        "action": tool_result.get("tool_name"),
+                        "action_status": tool_result.get("status"),
+                        "reason_code": tool_result.get("reason_code"),
+                        "audit_chain_valid": row.get("audit_chain_valid"),
+                        "audit_event_count": row.get("audit_event_count"),
+                    }
+                )
 
 st.caption(
     f"Run {lifecycle['run_id']} · decision model {lifecycle['decision_model']} · "

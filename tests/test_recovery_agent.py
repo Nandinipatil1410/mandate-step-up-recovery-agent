@@ -123,6 +123,23 @@ class RecoveryAgentTests(unittest.TestCase):
         self.assertFalse(result.accepted)
         self.assertEqual("RECOVERY_WINDOW_EXPIRED", result.reason_code)
 
+    def test_schedule_retry_refuses_when_razorpay_owns_retry(self) -> None:
+        record = self.record_for(FailureCategory.INSUFFICIENT_FUNDS, attempt=1)
+        transaction = record.to_runtime_dict()
+        transaction["retry_owner"] = "razorpay"
+        transaction["gateway_retry_at"] = 1788537600
+        result = execute_tool(
+            ToolCall("schedule_retry", {"reason": "duplicate retry"}),
+            ToolExecutionContext(
+                transaction,
+                record.failure_category,
+                parse_iso_datetime(record.timestamp),
+                3,
+            ),
+        )
+        self.assertFalse(result.accepted)
+        self.assertEqual("EXTERNAL_RETRY_ALREADY_SCHEDULED", result.reason_code)
+
     def test_agent_rejects_multiple_tool_calls(self) -> None:
         record = self.record_for(FailureCategory.AFA_STEPUP_REQUIRED)
         calls = [

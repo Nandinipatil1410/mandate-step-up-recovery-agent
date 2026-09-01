@@ -33,6 +33,19 @@ class ScriptedDecisionClient:
             return AgentDecision(
                 self.provider, self.model, choice.arguments["reason"], (choice,)
             )
+        if transaction.get("retry_owner") == "razorpay" and "send_notification" in available:
+            retry_at = transaction.get("gateway_retry_at")
+            schedule = f" at {retry_at}" if retry_at else " on Razorpay's schedule"
+            choice = ToolCall("send_notification", {
+                "message_purpose": "gateway_retry_notice",
+                "reason": (
+                    "Explain the existing Razorpay retry" + schedule
+                    + "; do not schedule a duplicate debit."
+                ),
+            })
+            return AgentDecision(
+                self.provider, self.model, choice.arguments["reason"], (choice,)
+            )
         choice = {
             FailureCategory.AFA_STEPUP_REQUIRED.value: ToolCall(
                 "request_stepup", {

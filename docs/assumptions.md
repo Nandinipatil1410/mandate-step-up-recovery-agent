@@ -65,6 +65,15 @@ The RuPay constraint comes first because a recurring debit above the threshold c
    applicable test-mode API can prove that operation, `request_stepup` remains a
    transparent simulation tied to the existing mandate ID. This avoids claiming
    that a new payment or mandate is the compliant step-up flow.
+9. **Razorpay owns retries for live subscription events.** A
+   `subscription.pending` webhook may include Razorpay's next `charge_at`, but
+   it does not authorize this agent to create another debit. Live policy permits
+   a notification draft or escalation and rejects `schedule_retry` with
+   `EXTERNAL_RETRY_ALREADY_SCHEDULED`.
+10. **Missing live root-cause evidence is not guessed.** Razorpay eMandate
+    failure payloads do not necessarily expose the classifier's card/UPI fields
+    or mandate ceiling. Such events use an explicit `other` evidence-gap rule;
+    the adapter makes no threshold-breach claim.
 
 ## Checkpoint 5 dashboard assumptions
 
@@ -80,6 +89,7 @@ The RuPay constraint comes first because a recurring debit above the threshold c
    documented seed-42 commands before starting Streamlit.
 4. **The decision explorer exposes model rationale, not private chain-of-thought.**
    It displays the concise audit explanation submitted with a bounded tool call.
-5. **The dashboard is a demo evidence console, not operational monitoring.** It
-   reads completed batch artifacts and does not imply live production traffic,
-   customer contact, or actual recovered funds.
+5. **The dashboard is a demo evidence console, not production monitoring.** Its
+   first three tabs read completed batch artifacts. The Live Razorpay tab reads
+   only a PII-minimized Test Mode feed and does not imply customer contact or
+   actual recovered funds.
