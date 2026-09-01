@@ -215,6 +215,14 @@ schedule a competing debit. Unsupported or missing root-cause evidence is
 reported as `other`; the adapter never invents a decline reason or mandate
 ceiling.
 
+The live decision provider defaults to `auto`: it uses Groq when
+`GROQ_API_KEY` is configured and otherwise uses the deterministic client. Set
+`LIVE_DECISION_PROVIDER=scripted` to force reproducible local behavior. If a
+Groq request fails or violates the one-tool contract, the same policy fence runs
+with the deterministic fallback so webhook processing remains available. Live
+model context replaces Razorpay customer, payment, and subscription identifiers
+with non-identifying role labels before any Groq request.
+
 Set a separate webhook secret in `.env`, then run locally:
 
 ```bash

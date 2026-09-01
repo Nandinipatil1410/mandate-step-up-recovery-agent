@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from mandate_recovery.agent import RecoveryAgent
+from mandate_recovery.agent import AgentDecisionError, RecoveryAgent
 from mandate_recovery.audit import AuditTrail
 from mandate_recovery.classification import classify
-from mandate_recovery.llm import ScriptedDecisionClient
+from mandate_recovery.llm import (
+    DecisionClient, GroqDecisionClient, LLMProviderError, ScriptedDecisionClient,
+)
 from mandate_recovery.models import ClassificationResult, FailureCategory
 from mandate_recovery.recovery import load_recovery_config
 
@@ -27,6 +30,32 @@ class LiveRecoveryResult:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def configured_live_decision_provider() -> str:
+    """Resolve the live provider without exposing or persisting credentials."""
+    requested = os.environ.get("LIVE_DECISION_PROVIDER", "auto").strip().lower()
+    if requested not in {"auto", "groq", "scripted"}:
+        raise ValueError(
+            "LIVE_DECISION_PROVIDER must be one of: auto, groq, scripted"
+        )
+    if requested == "scripted":
+        return "scripted"
+    if os.environ.get("GROQ_API_KEY"):
+        return "groq"
+    return "scripted"
+
+
+def _decision_client() -> DecisionClient:
+    provider = configured_live_decision_provider()
+    if provider == "scripted":
+        return ScriptedDecisionClient()
+    config = load_recovery_config()
+    return GroqDecisionClient(
+        model=config.groq_model,
+        base_url=config.groq_base_url,
+        timeout_seconds=config.groq_timeout_seconds,
+    )
 
 
 def _positive_int(value: Any, fallback: int = 1) -> int:
@@ -65,10 +94,12 @@ def _transaction(
     payment_rail = method if method in {"card", "upi"} else "upi"
     network = normalized.get("card_network") if payment_rail == "card" else None
     return {
-        "transaction_id": str(normalized.get("payment_id") or event_id),
-        "customer_id": str(normalized.get("customer_id") or "unknown_customer"),
+        # The model receives stable role labels, not Razorpay customer, payment,
+        # or subscription identifiers. Verified identifiers remain server-side.
+        "transaction_id": f"live_{event_id}",
+        "customer_id": "redacted_live_customer",
         "merchant_id": "razorpay_test_mode",
-        "mandate_id": str(normalized.get("subscription_id") or "unknown_subscription"),
+        "mandate_id": "existing_live_mandate",
         "amount_paise": amount,
         "currency": str(normalized.get("currency") or "INR"),
         # The webhook does not expose the mandate ceiling. Equality deliberately
@@ -95,12 +126,13 @@ def _transaction(
 
 
 def run_live_recovery(
-    normalized: dict[str, Any], *, event_id: str, now: datetime
+    normalized: dict[str, Any], *, event_id: str, now: datetime,
+    decision_client: DecisionClient | None = None,
 ) -> LiveRecoveryResult:
     event = str(normalized["event"])
     audit = AuditTrail(f"live_{event_id}")
     audit.append(
-        transaction_id=str(normalized.get("payment_id") or event_id),
+        transaction_id=f"live_{event_id}",
         event_type="razorpay_webhook_verified",
         actor="razorpay_webhook_receiver",
         reason_code=event.upper().replace(".", "_"),
@@ -137,7 +169,15 @@ def run_live_recovery(
         metadata=classification.to_dict(),
     )
     config = load_recovery_config()
-    agent = RecoveryAgent(ScriptedDecisionClient(), retry_cap=config.retry_cap)
+    # Groq is used only where there is a genuine intervention choice. Verified
+    # charged/halted events have one evidence-bound terminal action and stay
+    # deterministic, keeping payment evidence out of third-party model context.
+    client = decision_client or (
+        _decision_client()
+        if event == "subscription.pending"
+        else ScriptedDecisionClient()
+    )
+    agent = RecoveryAgent(client, retry_cap=config.retry_cap)
     verified_payment_id = None
     terminal_reason = None
     if event == "subscription.charged":
@@ -156,13 +196,30 @@ def run_live_recovery(
     elif event == "subscription.halted":
         terminal_reason = "RAZORPAY_SUBSCRIPTION_HALTED"
 
-    turn = agent.decide_and_execute(
-        transaction,
-        classification,
-        now=now,
-        verified_payment_id=verified_payment_id,
-        terminal_reason=terminal_reason,
-    )
+    fallback_used = False
+    try:
+        turn = agent.decide_and_execute(
+            transaction,
+            classification,
+            now=now,
+            verified_payment_id=verified_payment_id,
+            terminal_reason=terminal_reason,
+        )
+    except (LLMProviderError, AgentDecisionError):
+        if client.provider != "groq":
+            raise
+        # Webhook availability and bounded recovery must not depend on an
+        # external model. The deterministic client has the identical tool fence.
+        fallback_used = True
+        turn = RecoveryAgent(
+            ScriptedDecisionClient(), retry_cap=config.retry_cap
+        ).decide_and_execute(
+            transaction,
+            classification,
+            now=now,
+            verified_payment_id=verified_payment_id,
+            terminal_reason=terminal_reason,
+        )
     audit.append(
         transaction_id=transaction["transaction_id"],
         event_type="bounded_recovery_decided",
@@ -183,10 +240,15 @@ def run_live_recovery(
         classification.to_dict(),
         turn.decision.to_dict(),
         turn.tool_result.to_dict(),
-        (
+        tuple(filter(None, (
             "Razorpay remains the retry owner; no duplicate debit was scheduled.",
             "Notification execution is draft-only in this buildathon environment.",
-        ),
+            (
+                "Groq was unavailable or returned an invalid decision; the same "
+                "bounded policy ran with the deterministic fallback."
+                if fallback_used else None
+            ),
+        ))),
         audit.verify(),
         tuple(item.to_dict() for item in audit.events),
     )

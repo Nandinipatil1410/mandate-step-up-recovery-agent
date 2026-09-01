@@ -15,7 +15,10 @@ if str(SRC_ROOT) not in sys.path:
 
 from mandate_recovery.environment import load_project_environment
 from mandate_recovery.integrations import WebhookVerificationError
-from mandate_recovery.webhooks import WebhookEventStore, process_razorpay_webhook
+from mandate_recovery.webhooks import (
+    WebhookEventStore, configured_live_decision_provider,
+    process_razorpay_webhook,
+)
 
 load_project_environment(PROJECT_ROOT)
 
@@ -40,6 +43,7 @@ def health() -> dict[str, object]:
     return {
         "status": "ok" if configured else "configuration_required",
         "webhook_secret_configured": configured,
+        "decision_provider": configured_live_decision_provider(),
     }
 
 

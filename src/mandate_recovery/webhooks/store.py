@@ -159,6 +159,16 @@ class WebhookEventStore:
                 "tool_result": (
                     recovery.get("tool_result") if isinstance(recovery, dict) else None
                 ),
+                "decision_provider": (
+                    (recovery.get("decision") or {}).get("provider")
+                    if isinstance(recovery, dict)
+                    else None
+                ),
+                "decision_model": (
+                    (recovery.get("decision") or {}).get("model")
+                    if isinstance(recovery, dict)
+                    else None
+                ),
                 "processing_error": bool(row["processing_error"]),
                 "audit_chain_valid": (
                     recovery.get("audit_chain_valid")

@@ -6,6 +6,7 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -15,7 +16,19 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from mandate_recovery.integrations import WebhookVerificationError
-from mandate_recovery.webhooks import WebhookEventStore, process_razorpay_webhook
+from mandate_recovery.llm import LLMProviderError
+from mandate_recovery.webhooks import (
+    WebhookEventStore, configured_live_decision_provider,
+    process_razorpay_webhook, run_live_recovery,
+)
+
+
+class UnavailableGroqClient:
+    provider = "groq"
+    model = "unavailable-test-model"
+
+    def choose_tool(self, context, tools):
+        raise LLMProviderError("simulated provider outage")
 
 
 class WebhookServiceTests(unittest.TestCase):
@@ -41,6 +54,38 @@ class WebhookServiceTests(unittest.TestCase):
 
     def signature(self, body: bytes) -> str:
         return hmac.new(self.secret.encode(), body, hashlib.sha256).hexdigest()
+
+    def test_live_provider_uses_groq_when_key_is_configured(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {"GROQ_API_KEY": "test-only", "LIVE_DECISION_PROVIDER": "auto"},
+            clear=True,
+        ):
+            self.assertEqual("groq", configured_live_decision_provider())
+
+    def test_live_provider_falls_back_safely_when_groq_is_unavailable(self) -> None:
+        normalized = {
+            "event": "subscription.pending",
+            "subscription_id": "sub_test",
+            "subscription_status": "pending",
+            "customer_id": "cust_test",
+            "charge_at": 1788537600,
+            "payment_id": "pay_test",
+            "payment_status": "failed",
+            "payment_method": "emandate",
+            "amount_paise": 150000,
+            "currency": "INR",
+            "error_code": "BAD_REQUEST_ERROR",
+            "error_reason": "payment_failed",
+        }
+        result = run_live_recovery(
+            normalized,
+            event_id="event_fallback",
+            now=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            decision_client=UnavailableGroqClient(),
+        )
+        self.assertEqual("scripted", result.decision["provider"])
+        self.assertTrue(any("fallback" in note for note in result.safety_notes))
 
     def test_valid_event_is_recorded_once_and_duplicate_is_acknowledged(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -68,6 +113,7 @@ class WebhookServiceTests(unittest.TestCase):
             self.assertEqual(1, len(recent))
             self.assertEqual("other", recent[0]["classification"]["predicted_category"])
             self.assertEqual("send_notification", recent[0]["tool_result"]["tool_name"])
+            self.assertEqual("scripted", recent[0]["decision_provider"])
             self.assertTrue(recent[0]["audit_chain_valid"])
             self.assertEqual(3, recent[0]["audit_event_count"])
 
@@ -75,13 +121,15 @@ class WebhookServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             store = WebhookEventStore(Path(directory) / "events.sqlite3")
             body = self.payload("subscription.charged")
-            processed = process_razorpay_webhook(
-                body=body, signature=self.signature(body), event_id="event_charged",
-                secret=self.secret, store=store,
-                received_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
-            )
+            with patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}, clear=True):
+                processed = process_razorpay_webhook(
+                    body=body, signature=self.signature(body), event_id="event_charged",
+                    secret=self.secret, store=store,
+                    received_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                )
             self.assertEqual("mark_recovered", processed.recovery["tool_result"]["tool_name"])
             self.assertEqual("VERIFIED_PAYMENT", processed.recovery["tool_result"]["reason_code"])
+            self.assertEqual("scripted", processed.recovery["decision"]["provider"])
             self.assertTrue(processed.recovery["audit_chain_valid"])
 
     def test_halted_event_closes_only_with_terminal_evidence(self) -> None:

@@ -11,3 +11,7 @@ services:
         sync: false
       - key: WEBHOOK_DB_PATH
         value: /tmp/razorpay_events.sqlite3
+      - key: GROQ_API_KEY
+        sync: false
+      - key: LIVE_DECISION_PROVIDER
+        value: auto

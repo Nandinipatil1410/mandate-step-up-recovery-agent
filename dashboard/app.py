@@ -288,6 +288,8 @@ with live_tab:
                         "subscription_status": row.get("subscription_status"),
                         "category": classification.get("predicted_category"),
                         "classification_reason": classification.get("reason"),
+                        "decision_provider": row.get("decision_provider"),
+                        "decision_model": row.get("decision_model"),
                         "action": tool_result.get("tool_name"),
                         "action_status": tool_result.get("status"),
                         "reason_code": tool_result.get("reason_code"),
