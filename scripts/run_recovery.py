@@ -16,6 +16,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from mandate_recovery.agent import RecoveryAgent
+from mandate_recovery.environment import load_project_environment
 from mandate_recovery.audit import AuditTrail
 from mandate_recovery.classification import load_classification_config
 from mandate_recovery.llm import (
@@ -25,6 +26,8 @@ from mandate_recovery.notifications import (
     GroqNotificationProvider, NotificationGenerator, TemplateNotificationProvider,
 )
 from mandate_recovery.recovery import RecoveryLifecycleRunner, load_recovery_config
+
+load_project_environment(PROJECT_ROOT)
 
 
 def parse_args() -> argparse.Namespace:

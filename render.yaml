@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: mandate-recovery-webhook
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn api.app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: WEBHOOK_DB_PATH
+        value: /tmp/razorpay_events.sqlite3

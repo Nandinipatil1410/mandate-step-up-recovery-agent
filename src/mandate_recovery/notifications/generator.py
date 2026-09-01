@@ -92,11 +92,18 @@ class GroqNotificationProvider:
             headers={
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
+                "User-Agent": "mandate-recovery-buildathon/1.0",
             }, method="POST",
         )
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
                 return str(json.load(response)["choices"][0]["message"]["content"]).strip()
+        except urllib.error.HTTPError as error:
+            detail = error.read().decode("utf-8", errors="replace")[:500]
+            detail = detail.replace(self.api_key, "[redacted]")
+            raise RuntimeError(
+                f"Groq notification request failed with HTTP {error.code}: {detail}"
+            ) from error
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError, IndexError) as error:
             raise RuntimeError(f"Groq notification request failed: {error}") from error
 

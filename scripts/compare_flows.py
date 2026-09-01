@@ -24,6 +24,9 @@ from mandate_recovery.models import EVALUATION_FIELDS, parse_iso_datetime
 from mandate_recovery.recovery import (
     load_recovery_config, run_compliant_action, run_naive_action, simulate_outcome,
 )
+from mandate_recovery.environment import load_project_environment
+
+load_project_environment(PROJECT_ROOT)
 
 
 def parse_args() -> argparse.Namespace:

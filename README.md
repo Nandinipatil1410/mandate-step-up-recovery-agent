@@ -165,7 +165,27 @@ validation, and terminal-state evidence remain enforced in deterministic code.
 
 ## Optional Razorpay test-mode plumbing
 
-Copy `.env.example` values into your shell, using only `rzp_test_` credentials.
+Copy `.env.example` to `.env` and fill its values, using only `rzp_test_`
+credentials. Local scripts load `.env` automatically without overriding values
+already supplied by the host environment.
+
+Run the credential-safe combined check (two Groq calls plus a read-only Razorpay
+Payment Link listing):
+
+```bash
+python scripts/demo_integrations_smoke.py
+```
+
+To create exactly one INR 1 Standard Payment Link in Razorpay Test Mode for the
+alternate-method demo:
+
+```bash
+python scripts/demo_integrations_smoke.py --create-payment-link
+```
+
+The command reports provider/model, selected bounded tool, notification safety
+status, and safe Razorpay entity identifiers. It never prints API credentials.
+
 To confirm an existing test subscription can be read:
 
 ```bash
@@ -177,6 +197,44 @@ alternate-method path, and verifies Razorpay webhook HMAC signatures before
 normalizing subscription events. These calls are deliberately not part of the
 synthetic batch metric: Razorpay test mode cannot reproduce the bank-side AFA
 failure, and a Payment Link must not be presented as same-mandate AFA approval.
+
+## Run and deploy the Razorpay webhook receiver
+
+The FastAPI service accepts only signed `subscription.pending`,
+`subscription.charged`, `subscription.halted`, and `subscription.activated`
+events. It verifies the untouched request body before parsing, deduplicates via
+`x-razorpay-event-id`, and stores normalized event fields in SQLite.
+
+Set a separate webhook secret in `.env`, then run locally:
+
+```bash
+python -m uvicorn api.app:app --host 127.0.0.1 --port 8000
+```
+
+In another terminal, send a correctly signed probe:
+
+```bash
+python scripts/send_test_webhook.py
+```
+
+The committed `render.yaml` describes a Render web service. In Render, create a
+new Blueprint from this repository and enter `RAZORPAY_WEBHOOK_SECRET` when
+prompted. Do not upload `.env`. After deployment, verify:
+
+```bash
+python scripts/send_test_webhook.py --url https://YOUR-SERVICE.onrender.com/webhooks/razorpay
+```
+
+Then create the Test Mode webhook in Razorpay with:
+
+- URL: `https://YOUR-SERVICE.onrender.com/webhooks/razorpay`
+- Secret: exactly the `RAZORPAY_WEBHOOK_SECRET` configured on Render
+- Events: `subscription.pending`, `subscription.charged`,
+  `subscription.halted`, and `subscription.activated`
+
+The free deployment uses ephemeral SQLite storage, suitable for the judged demo
+but not production durability. A restart can clear its deduplication history;
+production should attach persistent storage or use a managed database.
 
 ## Run the checkpoint-5 dashboard
 

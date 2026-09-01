@@ -13,6 +13,9 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from mandate_recovery.integrations import RazorpayGatewayError, RazorpayTestGateway
+from mandate_recovery.environment import load_project_environment
+
+load_project_environment(PROJECT_ROOT)
 
 
 def main() -> int:

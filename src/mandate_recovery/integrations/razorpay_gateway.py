@@ -34,6 +34,11 @@ class RazorpayTestGateway:
     def fetch_subscription(self, subscription_id: str) -> dict[str, Any]:
         return self._request("GET", f"/subscriptions/{subscription_id}")
 
+    def fetch_payment_links(self, *, count: int = 1) -> dict[str, Any]:
+        if not 1 <= count <= 100:
+            raise ValueError("count must be between 1 and 100")
+        return self._request("GET", f"/payment_links?count={count}")
+
     def create_alternate_payment_link(
         self, *, amount_paise: int, currency: str, reference_id: str,
         description: str,
@@ -53,7 +58,11 @@ class RazorpayTestGateway:
         request = urllib.request.Request(
             f"{self.BASE_URL}{path}",
             data=json.dumps(payload).encode("utf-8") if payload is not None else None,
-            headers={"Authorization": f"Basic {token}", "Content-Type": "application/json"},
+            headers={
+                "Authorization": f"Basic {token}",
+                "Content-Type": "application/json",
+                "User-Agent": "mandate-recovery-buildathon/1.0",
+            },
             method=method,
         )
         try:
