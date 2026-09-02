@@ -1,13 +1,31 @@
 # Mandate Step-up Recovery Agent
 
-Buildathon prototype for detecting failed recurring-payment revenue, diagnosing the failure, and executing a bounded recovery workflow.
+[![CI](https://github.com/Nandinipatil1410/mandate-step-up-recovery-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Nandinipatil1410/mandate-step-up-recovery-agent/actions/workflows/ci.yml)
+
+An explainable AI recovery agent for failed recurring payments. It diagnoses why a mandate payment failed, chooses only policy-compliant interventions, stops when recovery is unsafe or exhausted, and makes every decision independently auditable.
+
+**Razorpay AI Buildathon · Track 03 — AI Revenue Recovery**
 
 Offline recovery metrics remain synthetic and reproducible. Separately, the
 repository includes a real Razorpay Test Mode edge: signed subscription events
 are verified, deduplicated, classified conservatively, passed through the same
 bounded recovery agent, and exposed as a PII-minimized live dashboard feed.
 
-## Current status
+## Submission evidence
+
+The judged seed-42 comparison runs 200 identical failures through the bounded agent and an intentionally unsafe new-mandate baseline. Outcomes are paired, so both strategies face the same latent customer response.
+
+| Evidence | Bounded agent | Naive baseline | Difference |
+| --- | ---: | ---: | ---: |
+| Recovered transactions | 126 / 200 | 36 / 200 | **+90** |
+| Recovery rate | **63.0%** | 18.0% | **+45.0 pp** |
+| Recovered value | INR 2,330,254 | INR 370,669 | **INR 1,959,585** |
+
+The complete lifecycle run recovers 131 of 200 transactions (65.5%), representing INR 2,383,472 of synthetic revenue. It also exposes 52 escalations and 17 unrecoverable cases, rather than hiding unsuccessful outcomes. Its 1,389-event SHA-256 audit chain verifies successfully.
+
+> These are deterministic measurements on documented synthetic outcomes, not claims about production recovery performance.
+
+## What is implemented
 
 Checkpoint 1 implements a deterministic synthetic failed-payment generator:
 
@@ -73,6 +91,22 @@ flowchart LR
     L --> B
     L --> I
 ```
+
+## Quick start
+
+Python 3.11 or newer is recommended. From a fresh clone:
+
+```bash
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -v
+python scripts/generate_dataset.py --seed 42 --count 200
+python scripts/compare_flows.py --run-id checkpoint-3 --seed 42 --provider scripted
+python scripts/run_recovery.py --run-id checkpoint-4 --seed 42 --decision-provider scripted --notification-provider template
+python scripts/verify_audit.py data/runs/checkpoint-4/audit_events.jsonl
+python -m streamlit run dashboard/app.py
+```
+
+The deterministic path needs no API credentials. Open `http://localhost:8501` after the final command.
 
 ## Generate the checkpoint dataset
 
@@ -289,4 +323,16 @@ Each stored synthetic record contains answer-key fields such as `failure_categor
 
 The classifier and recovery agent must infer their decisions from observable fields such as amount, mandate ceiling, payment rail, card network, decline code, and prior attempts. Reading the answer-key fields at runtime would be label leakage and would invalidate the evaluation.
 
-See [project assumptions](docs/assumptions.md) for the decisions made from the brief.
+See [project assumptions](docs/assumptions.md) for the explicit modeling and policy decisions.
+
+## Failure recovery demonstrated
+
+Razorpay Test Mode cannot reproduce every bank-side AFA failure or expose a reliable root cause for every subscription event. The implementation therefore keeps the judged batch reproducible, labels all synthetic measurements clearly, and treats unsupported live evidence as `other` instead of inventing a diagnosis. Pending subscription events leave retry ownership with Razorpay, preventing a competing debit. Duplicate webhooks are rejected by event ID, and any Groq error or invalid tool response falls back to the same deterministic policy fence.
+
+## Security and submission hygiene
+
+- Only `rzp_test_` credentials are permitted by the integration boundary; live-mode keys are rejected.
+- `.env`, local databases, generated run artifacts, and submission media are Git-ignored.
+- Signed webhooks are verified against the untouched request body before parsing.
+- Customer, payment, and subscription identifiers are replaced with non-identifying role labels before live model calls.
+- No credential value is logged by the smoke-test or webhook tooling.
